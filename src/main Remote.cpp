@@ -32,24 +32,25 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 #define sMeasure 4
 #define sReady 5
 #define sAvg 200
+#define writeWindow 500
 
 
 //Define Variables we'll be connecting to
 double newSetpoint;
 double tnewSetpoint;
-unsigned long setTime, tempTime2 = 0, tempTime3 = 0,tempTime4 = 0, tempTime5 = 0, tTemp, tFinalTemp;
+unsigned long setTime, setTime2 = 0, sMeasureTime = 0, tTemp, tFinalTemp, debugTime = 0;
 
-unsigned int tOutput, tSens, tSet, tError;
-int tSetpoint, tInput=0, tSetpointTemp;
+unsigned int tError;
+int tSetpoint, tInput=0, tSetpointTemp, tInputTemp;
 
 int currentSetPressure;
-bool switchLockState, btState;
+bool switchLockState, switchLockStateCheck=0 , btState;
 int sensVal;
 int sStatus = 0;
 
 
 void setup() {
- //  Serial.begin (9600);
+   Serial.begin (9600);
    Serial1.begin(9600);
    while(!Serial1);
   
@@ -80,10 +81,10 @@ void setup() {
   display.println("CONNECTED!"); 
   display.display();
   delay (2000);
+
+
+
   switchLockState = digitalRead(switchLock);
-
-
-
   while (!switchLockState) {
   display.clearDisplay();
   display.setTextSize(2);
@@ -100,19 +101,6 @@ void setup() {
 
 
 //////////////////////////////////////////       Functions          //////////////////////////////////////////
-
-void relay(bool up, bool down){
-    if (up) sStatus =  sUp;
-    if (down) sStatus = sDown;
-    if (!up && !down && (!switchLockState && (abs(tInput-tSetpoint)<=1))) sStatus = sFinished;
-    if (!up && !down && !switchLockState && (abs(tInput-tSetpoint)>1)) sStatus = sMeasure;
-    if (!up && !down && switchLockState) sStatus = sReady;
-
-    if (millis() - tempTime4 > 200){
-      Serial1.write(tSetpointTemp);            ///////////////////// Serial1 write
-      Serial1.flush();
-    }
-}
 
 void beep (int x){
   if ((millis()/1000)%5){
@@ -177,7 +165,12 @@ void displayStatus(){
         display.println("Measuring...");
         showPSI();
       break;
-
+    case 0:
+        display.setTextSize(1);
+        display.setCursor(30,0);
+        display.println("Error");
+        showPSI();
+      break;
   }
 }
   
@@ -204,6 +197,23 @@ int avgMeasure(){
   return tFinalTemp;
 }
 
+
+void debug(){
+  if (millis() - debugTime > 2000){
+  Serial.print("tSetpointTemp: ");
+  Serial.println(tSetpointTemp);
+  Serial.print("tInput: ");
+  Serial.println(tInput);
+  Serial.print("tInputTemp: ");
+  Serial.println(tInputTemp);
+  Serial.print("sStatus: ");
+  Serial.println(sStatus);
+  Serial.println(" ");
+  debugTime = millis();
+  }
+  return;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -218,36 +228,26 @@ void loop() {
   if (!switchLockState) tSetpointTemp = tSetpoint+100;
   else tSetpointTemp = tSetpoint;
   
-
-
-//  Serial.println("tSetpointTemp:");
-//  Serial.println(tSetpointTemp);
-
-  if (Serial1.available()>0){
-    tInput = Serial1.read();                  ///////////////////////// Serial1 read
-//    Serial.println("tInput:");
-//    Serial.println(tInput);
+  if (switchLockState != switchLockStateCheck){
+    Serial1.write(tSetpointTemp);            ///////////////////// Serial1 write
+    Serial1.flush();
+    switchLockStateCheck = switchLockState;
+    Serial.println("SENT!");
   }
 
-  if (!switchLockState && abs(tInput-tSetpoint)>1){
-        tError = abs(tInput-tSetpoint)*1000;
-        setTime = millis();
-        while ((millis() - setTime < tError) && !switchLockState) {
-         if (tInput < tSetpoint) {
-            relay (1,0);
-          }
-          if (tInput > tSetpoint) {
-           relay (0,1);
-         }
-          displayStatus();
-         switchLockState = digitalRead(switchLock);
-       } 
+  if (Serial1.available()>1){
+    tInputTemp = Serial1.read();                  ///////////////////////// Serial1 read
+    delay(2);
+    int tInputTemp2 = Serial1.read();                  ///////////////////////// Serial1 read
+    delay(2);
+
+    if (tInputTemp<100) tInput = tInputTemp;
+    else if (tInputTemp2<100) tInput = tInputTemp2;
+    if (tInputTemp>100) sStatus = tInputTemp-100;
+    else if (tInputTemp2>100) sStatus = tInputTemp2-100;
   }
-  relay(0,0);
-  displayStatus();    
+ 
+  displayStatus();   
 
-  if (sStatus == sMeasure) delay (1500); 
-
-  
-  delay(1);
+  debug(); 
 }
