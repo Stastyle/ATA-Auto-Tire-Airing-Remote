@@ -204,10 +204,6 @@ int avgMeasure(){
   return tFinalTemp;
 }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 6e3122427044b0d754f4754407103aae53e16b5a
 void debug(){
   if (millis() - debugTime > 2000){
   Serial.print("tSetpointTemp: ");
@@ -223,11 +219,6 @@ void debug(){
   }
   return;
 }
-<<<<<<< HEAD
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-=======
->>>>>>> 6e3122427044b0d754f4754407103aae53e16b5a
 
 void readData(){
    if (Serial1.available()>1){
@@ -259,10 +250,6 @@ void setPot(){
   tSetpoint = map(currentSetPressure, 0, 1023, 0, 50);
    
   if (!switchLockState) tSetpointTemp = tSetpoint+100;
-<<<<<<< HEAD
-  else tSetpointTemp = tSetpoint;
-  
-  if (switchLockState != switchLockStateCheck){
     Serial1.write(tSetpointTemp);            ///////////////////// Serial1 write
     Serial1.flush();
     switchLockStateCheck = switchLockState;
@@ -285,19 +272,3 @@ void setPot(){
 
   debug(); 
 }
-=======
-  else tSetpointTemp = tSetpoint;   
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-void loop() {
-  checkBtState();
-  setPot();
-  writeData();
-  readData();
-  displayStatus();
-  debug(); 
-}
->>>>>>> 6e3122427044b0d754f4754407103aae53e16b5a
