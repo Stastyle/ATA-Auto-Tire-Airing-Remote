@@ -86,11 +86,8 @@ void setup() {
   display.println("CONNECTED!"); 
   display.display();
   delay (2000);
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 6e3122427044b0d754f4754407103aae53e16b5a
 
   switchLockState = digitalRead(switchLock);
   while (!switchLockState) {
