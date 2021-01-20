@@ -48,7 +48,6 @@ bool switchLockState, switchLockStateCheck=0 , btState;
 int sensVal;
 int sStatus = 0;
 
-
 void setup() {
    Serial.begin (9600);
    Serial1.begin(9600);
@@ -63,7 +62,6 @@ void setup() {
   pinMode (switchLock, INPUT_PULLUP);
   pinMode (btStatePin, INPUT);
   pinMode (buzzerPin, OUTPUT);
-
 
   display.clearDisplay();
   display.setTextSize(1);
@@ -81,8 +79,6 @@ void setup() {
   display.println("CONNECTED!"); 
   display.display();
   delay (2000);
-
-
 
   switchLockState = digitalRead(switchLock);
   while (!switchLockState) {
@@ -113,19 +109,18 @@ void beep (int x){
   }
 }
 
-
 void showPSI(){
-        display.setCursor(0,9);
-        display.setTextSize(1);
-        display.println("SET       TIRE");
-        display.setTextSize(2);
-        display.setCursor(0,15);
-        display.print((unsigned int)tSetpoint);
-        display.setCursor(50,15);
-        if (tInput > 65) display.print("ER");
-        if (tInput < 65) display.print(tInput);
-        display.display();
-  }
+   display.setCursor(0,9);
+   display.setTextSize(1);
+   display.println("SET       TIRE");
+   display.setTextSize(2);
+   display.setCursor(0,15);
+   display.print((unsigned int)tSetpoint);
+   display.setCursor(50,15);
+   if (tInput > 65) display.print("ER");
+   if (tInput < 65) display.print(tInput);
+   display.display();
+ }
 
 void displayStatus(){
   display.clearDisplay();
@@ -197,7 +192,6 @@ int avgMeasure(){
   return tFinalTemp;
 }
 
-
 void debug(){
   if (millis() - debugTime > 2000){
   Serial.print("tSetpointTemp: ");
@@ -214,40 +208,47 @@ void debug(){
   return;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-void loop() {
-  checkBtState();
-  
-  switchLockState = digitalRead(switchLock);
-  if (switchLockState) currentSetPressure = avgMeasure();
-
-  tSetpoint = map(currentSetPressure, 0, 1023, 0, 50);
-   
-  if (!switchLockState) tSetpointTemp = tSetpoint+100;
-  else tSetpointTemp = tSetpoint;
-  
-  if (switchLockState != switchLockStateCheck){
-    Serial1.write(tSetpointTemp);            ///////////////////// Serial1 write
-    Serial1.flush();
-    switchLockStateCheck = switchLockState;
-    Serial.println("SENT!");
-  }
-
-  if (Serial1.available()>1){
+void readData(){
+   if (Serial1.available()>1){
     tInputTemp = Serial1.read();                  ///////////////////////// Serial1 read
     delay(2);
     int tInputTemp2 = Serial1.read();                  ///////////////////////// Serial1 read
     delay(2);
 
     if (tInputTemp<100) tInput = tInputTemp;
-    else if (tInputTemp2<100) tInput = tInputTemp2;
+      else if (tInputTemp2<100) tInput = tInputTemp2;
     if (tInputTemp>100) sStatus = tInputTemp-100;
-    else if (tInputTemp2>100) sStatus = tInputTemp2-100;
+      else if (tInputTemp2>100) sStatus = tInputTemp2-100;
   }
- 
-  displayStatus();   
+}
 
+void writeData(){
+    if (switchLockState != switchLockStateCheck){
+    Serial1.write(tSetpointTemp);            ///////////////////// Serial1 write
+    Serial1.flush();
+    switchLockStateCheck = switchLockState;
+    Serial.println("SENT!");
+  }   
+}
+
+void setPot(){
+  switchLockState = digitalRead(switchLock);
+  if (switchLockState) currentSetPressure = avgMeasure();
+
+  tSetpoint = map(currentSetPressure, 0, 1023, 0, 50);
+   
+  if (!switchLockState) tSetpointTemp = tSetpoint+100;
+  else tSetpointTemp = tSetpoint;   
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+void loop() {
+  checkBtState();
+  setPot();
+  writeData();
+  readData();
+  displayStatus();
   debug(); 
 }
