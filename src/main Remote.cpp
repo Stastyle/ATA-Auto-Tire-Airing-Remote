@@ -25,6 +25,8 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 #define setPressure A0   // Potentiometer to set pressure
 #define switchLock 7     // Switch for airing
 #define buzzerPin 9
+#define TxP 8           // Tx Pin for bluetooth module
+#define RxP 9           // Rx Pin for bluetooth module
 #define btStatePin 6       // HC-05 state pin
 
 #define sUp 1
@@ -34,20 +36,14 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 #define sReady 5
 #define sAvg 200
 #define writeWindow 500
+#define ACKtimeout 1500
 
 
 //Define Variables we'll be connecting to
-double newSetpoint;
-double tnewSetpoint;
 unsigned long setTime, setTime2 = 0, sMeasureTime = 0, tTemp, tFinalTemp, debugTime = 0;
-
 unsigned int tError;
-int tSetpoint, tInput=0, tSetpointTemp, tInputTemp;
-
-int currentSetPressure;
+int tSetpoint, tInput=0, tSetpointTemp, tInputTemp, currentSetPressure, sensVal, sStatus = 0;
 bool switchLockState, switchLockStateCheck=0 , btState;
-int sensVal;
-int sStatus = 0;
 
 void setup() {
    Serial.begin (9600);
@@ -79,7 +75,7 @@ void setup() {
   display.println(" "); 
   display.println("Connecting..."); 
   display.display();
-  while (!digitalRead(btStatePin)){};
+  while (!digitalRead(btStatePin));
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
@@ -87,21 +83,17 @@ void setup() {
   display.display();
   delay (2000);
 
-
-
   switchLockState = digitalRead(switchLock);
   while (!switchLockState) {
   display.clearDisplay();
   display.setTextSize(2);
   display.setTextColor(WHITE);
-  display.setCursor(0,10);
+  display.setCursor(0,0);
   display.println("Release"); 
-  display.println(" the "); 
-  display.println("switch!"); 
+  display.println("the switch!"); 
   display.display();
   switchLockState = digitalRead(switchLock);
   }
-  
 }
 
 
@@ -144,14 +136,14 @@ void displayStatus(){
     case sUp:
       display.setTextSize(1);
       display.setCursor(20,0);
-      display.println("Working UP!");
+      display.println("Airing UP!");
       showPSI();
       break;
 
     case sDown:
        display.setTextSize(1);
        display.setCursor(20,0);
-       display.println("Working DOWN!");
+       display.println("Airing DOWN!");
        showPSI();
       break;
 
@@ -203,40 +195,51 @@ int avgMeasure(){
 
 void debug(){
   if (millis() - debugTime > 2000){
-  Serial.print("tSetpointTemp: ");
-  Serial.println(tSetpointTemp);
-  Serial.print("tInput: ");
-  Serial.println(tInput);
-  Serial.print("tInputTemp: ");
-  Serial.println(tInputTemp);
-  Serial.print("sStatus: ");
-  Serial.println(sStatus);
-  Serial.println(" ");
-  debugTime = millis();
+    Serial.print("tSetpointTemp: ");
+    Serial.println(tSetpointTemp);
+    Serial.print("tInput: ");
+    Serial.println(tInput);
+    Serial.print("tInputTemp: ");
+    Serial.println(tInputTemp);
+    Serial.print("sStatus: ");
+    Serial.println(sStatus);
+    Serial.println(" ");
+    debugTime = millis();
   }
   return;
 }
 
-void readData(){
+void readData(){                                            ///////////////////////// Serial1 read
    if (Serial1.available()>1){
-    tInputTemp = Serial1.read();                  ///////////////////////// Serial1 read
-    delay(2);
-    int tInputTemp2 = Serial1.read();                  ///////////////////////// Serial1 read
-    delay(2);
+    tInputTemp = Serial1.read();                  
+    Serial1.write('A');           
+    Serial1.flush();
+    unsigned long setTempReadTime = millis();
+    while (Serial1.read() != 'A' || millis() - setTempReadTime < ACKtimeout);
+    if (millis() - setTempReadTime > ACKtimeout) return;
+    int tInputTemp2 = Serial1.read();  
+    Serial1.write('A');           
+    Serial1.flush();                
+    setTempReadTime = millis();
+    while (Serial1.read() != 'A' || millis() - setTempReadTime < ACKtimeout);
 
     if (tInputTemp<100) tInput = tInputTemp;
       else if (tInputTemp2<100) tInput = tInputTemp2;
     if (tInputTemp>100) sStatus = tInputTemp-100;
       else if (tInputTemp2>100) sStatus = tInputTemp2-100;
+
+    if (Serial1.available() > 10) while (Serial1.available()>1) Serial1.read();           // Flush
   }
 }
 
-void writeData(){
+void writeData(){                                            ///////////////////// Serial1 write
     if (switchLockState != switchLockStateCheck){
-    Serial1.write(tSetpointTemp);            ///////////////////// Serial1 write
-    Serial1.flush();
-    switchLockStateCheck = switchLockState;
-    Serial.println("SENT!");
+      do {
+        Serial1.write(tSetpointTemp);           
+        Serial1.flush();
+      } while (Serial1.read() != 'B');
+      switchLockStateCheck = switchLockState;
+      Serial.println("SENT!");
   }   
 }
 
@@ -247,25 +250,17 @@ void setPot(){
   tSetpoint = map(currentSetPressure, 0, 1023, 0, 50);
    
   if (!switchLockState) tSetpointTemp = tSetpoint+100;
-    Serial1.write(tSetpointTemp);            ///////////////////// Serial1 write
-    Serial1.flush();
-    switchLockStateCheck = switchLockState;
-    Serial.println("SENT!");
-  }
+  else tSetpointTemp = tSetpoint;   
+}
 
-  if (Serial1.available()>1){
-    tInputTemp = Serial1.read();                  ///////////////////////// Serial1 read
-    delay(2);
-    int tInputTemp2 = Serial1.read();                  ///////////////////////// Serial1 read
-    delay(2);
+/////////////////////////////////////////////// End Functions ///////////////////////////////////////////////////////////////
 
-    if (tInputTemp<100) tInput = tInputTemp;
-    else if (tInputTemp2<100) tInput = tInputTemp2;
-    if (tInputTemp>100) sStatus = tInputTemp-100;
-    else if (tInputTemp2>100) sStatus = tInputTemp2-100;
-  }
- 
-  displayStatus();   
 
+void loop() {
+  checkBtState();
+  setPot();
+  writeData();
+  readData();
+  displayStatus();
   debug(); 
 }
