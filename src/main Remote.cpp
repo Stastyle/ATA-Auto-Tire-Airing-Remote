@@ -42,8 +42,9 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 //Define Variables we'll be connecting to
 unsigned long setTime, setTime2 = 0, sMeasureTime = 0, tTemp, tFinalTemp, debugTime = 0;
 unsigned int tError;
-int tSetpoint, tInput=0, tSetpointTemp, tInputTemp, currentSetPressure, sensVal, sStatus = 0;
+int tSetpoint, tInput=0, tSetpointTemp, tInputTemp, currentSetPressure, sensVal, sStatus = sReady;
 bool switchLockState, switchLockStateCheck=0 , btState;
+char ACKhold;
 
 void setup() {
    Serial.begin (9600);
@@ -161,12 +162,14 @@ void displayStatus(){
         display.println("Measuring...");
         showPSI();
       break;
+    /*  
     case 0:
         display.setTextSize(1);
         display.setCursor(30,0);
         display.println("Error");
         showPSI();
       break;
+      */
   }
 }
   
@@ -210,37 +213,29 @@ void debug(){
 }
 
 void readData(){                                            ///////////////////////// Serial1 read
-   if (Serial1.available()>1){
-    tInputTemp = Serial1.read();                  
-    Serial1.write('A');           
-    Serial1.flush();
-    unsigned long setTempReadTime = millis();
-    while (Serial1.read() != 'A' || millis() - setTempReadTime < ACKtimeout);
-    if (millis() - setTempReadTime > ACKtimeout) return;
-    int tInputTemp2 = Serial1.read();  
-    Serial1.write('A');           
-    Serial1.flush();                
-    setTempReadTime = millis();
-    while (Serial1.read() != 'A' || millis() - setTempReadTime < ACKtimeout);
-
-    if (tInputTemp<100) tInput = tInputTemp;
-      else if (tInputTemp2<100) tInput = tInputTemp2;
+   if (Serial1.available()>0){
+    tInputTemp = Serial1.read();   
+    delay(5);
+    int tInputTemp2 = Serial1.read(); 
+    
+    if (tInputTemp<100 && tInputTemp >= 0) tInput = tInputTemp;
+      else if (tInputTemp2<100 && tInputTemp2 >= 0) tInput = tInputTemp2;
     if (tInputTemp>100) sStatus = tInputTemp-100;
       else if (tInputTemp2>100) sStatus = tInputTemp2-100;
 
-    if (Serial1.available() > 10) while (Serial1.available()>1) Serial1.read();           // Flush
+    if (Serial1.available() > 10) while (Serial1.available()>0) Serial1.read();           // Flush
   }
 }
 
 void writeData(){                                            ///////////////////// Serial1 write
     if (switchLockState != switchLockStateCheck){
-      do {
         Serial1.write(tSetpointTemp);           
         Serial1.flush();
-      } while (Serial1.read() != 'B');
+        while (Serial1.read() != 'a');
       switchLockStateCheck = switchLockState;
       Serial.println("SENT!");
-  }   
+  }
+  return;   
 }
 
 void setPot(){
@@ -251,6 +246,7 @@ void setPot(){
    
   if (!switchLockState) tSetpointTemp = tSetpoint+100;
   else tSetpointTemp = tSetpoint;   
+  return;
 }
 
 /////////////////////////////////////////////// End Functions ///////////////////////////////////////////////////////////////
